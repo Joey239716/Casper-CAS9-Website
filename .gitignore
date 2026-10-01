@@ -8,3 +8,4 @@ scripts/.cache
 submissions/
 .vercel
 .env*.local
+.env*

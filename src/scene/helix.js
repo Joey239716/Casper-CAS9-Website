@@ -1,10 +1,12 @@
-// The beaded DNA double helix. Owner: agent 01-helix (beaded and recoloured by the coordinator, D-006).
-// and agents/status/01-helix.md (the "Interface delivered" section is the manual).
+// The DNA double helix: two smooth twisted strands joined by rod rungs.
+// Owner: agent 01-helix (restyled by the coordinator, D-006 and D-007).
+// See agents/status/01-helix.md (the "Interface delivered" section is the manual).
 //
 // How it works
 // ------------
-// The whole helix is two draw calls: one instanced mesh of beads for both
-// backbones and one instanced mesh for the 1200 beaded half-rungs. Neither mesh stores real positions.
+// The helix is three draw calls: one tube mesh for both backbones, one
+// instanced mesh for the 1200 half-rungs, and a few loose beads that fly off at
+// the cut. No mesh stores real positions.
 // Every vertex carries its place along the helix (a base-pair coordinate `s`)
 // and the vertex shader computes where that is from the params. So the model is
 // a pure function of (params, time) by construction, nothing is rebuilt on the
@@ -43,14 +45,28 @@ const R_TARGET = 1.2; // radius of the target strand (strand 0) inside the bubbl
 const R_OTHER = 1.44; // radius of the displaced strand (strand 1) inside the bubble
 const NEAR_AMP = 0.8;
 
-// Backbone beads: clusters of small spheres, like a space-filling model.
-const BEADS_PER_BP = 5;
-const BEAD_R = 0.15; // bead radius
-const BEAD_RING = 0.12; // how far beads sit from the strand's centreline
+// Backbones: one tube per strand, slightly oval and twisting along its length like a ribbon.
+const TUBE_R = 0.2; // tube radius
+const TUBE_RINGS = 3; // rings of vertices per base pair
+const GROOVE = 0.1; // how far from round the cross-section is, as a fraction of the radius
 
-// Rungs: chains of smaller beads, split at the middle.
-const RUNG_W = 0.11; // bead radius across the rung
-const RUNG_T = 0.11;
+// Shards: a few small beads thrown off the backbones at the cut.
+const BEADS_PER_BP = 5;
+const BEAD_R = 0.085;
+const BEAD_RING = 0.12; // how far they start from the strand's centreline
+const SHARD_SPAN = 3; // base pairs each side of the cut that shed beads
+
+// Rungs: round rods, split at the middle into the two bases. Only every second
+// one is drawn (a stylisation); the rest grow in where single letters matter.
+const RUNG_W = 0.135; // rod radius
+const RUNG_T = 0.135;
+
+// The hook: in the title the axis bends into a "tsu" shape, an arc with two
+// arms, lying in a plane that faces the camera. Lengths in nm.
+const HOOK_S = 195; // base pair at the outermost point of the arc
+const HOOK_R = 5.8; // radius of the arc
+const HOOK_TOP = { tilt: THREE.MathUtils.degToRad(4), over: 14 }; // upper arm droops a little
+const HOOK_TAIL = { tilt: THREE.MathUtils.degToRad(40), over: 8 }; // lower arm curls away
 
 // Sway: the axis drifts in a slow S-curve, nanometres.
 const SWAY_AMP = 1.1;
@@ -62,7 +78,7 @@ const BASES = { A: 0xf5cf6a, T: 0x7fa6f0, C: 0xf38f7c, G: 0x86d6a2 };
 const PAIR = { A: 'T', T: 'A', C: 'G', G: 'C' };
 const GOLD = 0xffbf52;
 const RUNG_GAP = 0.02; // half the hairline gap at the join
-const RUNG_CH = 0.05; // chamfer length at the tip
+const RUNG_CH = 0.04; // chamfer length at the tip
 const RUNG_OPEN = 0.7; // length of a half-rung when its pair is open
 
 // Repair.
@@ -88,6 +104,9 @@ export const meta = {
     dim: { value: 0, doc: '0..1. The 60 bp around the repaired site (bp -37..22) lose their light.' },
     edit: { value: 0, doc: '0..1. One rung (bp -40) turns gold in place: one base by 0.6, its partner by 1.' },
     sway: { value: 1, doc: '0..1. Slow S-curve drift of the axis. Set 0 while Cas9 is docked.' },
+    presence: { value: 1, doc: '0..1. Thickness of the whole model: at 0 the strands and rungs have thinned away to nothing, so it can arrive and leave as fine threads.' },
+    hook: { value: 0, doc: '0..1. Bends the axis into the title hook around base pair 195. 0 = straight.' },
+    hookAzimuth: { value: 62, doc: 'Degrees. Azimuth of the camera the hook should face (as in orbitPose).' },
   },
   views: {
     hero: { pos: [8, -5, 16], look: [-1.8, 3, 0], fov: 35 },
@@ -106,6 +125,7 @@ export const meta = {
     decoys: DECOYS.map((c) => ({ from: c - 1, to: c + 1, centre: c })),
     nearMatch: { pam: { from: NEAR.pam - 1, to: NEAR.pam + 1 }, bubble: { from: NEAR.from, to: NEAR.to }, lit: NEAR.lit },
     edit: EDIT,
+    hook: HOOK_S,
     deleted: [-8, -7, -6],
     dim: { ...DIM },
   },
@@ -137,6 +157,9 @@ uniform vec4 uOff;  // xy: sideways offset of the lower end  zw: of the upper en
 uniform float uRot; // how far the two halves have turned towards each other in repair (radians)
 uniform vec4 uMisc; // x: dim  y: flash  z: shard travel (nm)  w: shard size
 uniform vec2 uSway; // x: amplitude (nm)  y: time
+uniform float uThick; // 0..1: scales the thickness of strands and rungs
+uniform vec4 uHook; // x: amount  y: height of the arc's outermost point (nm)  zw: in-plane horizontal direction
+vec3 hxRad;         // set by hxCentre: the strand's outward direction, after the bend
 
 const float HX_RISE = ${f(RISE)};
 const float HX_TWIST = ${f(TWIST)};
@@ -152,6 +175,36 @@ float hxWinInt(float s, float a, float b, float e) {
 }
 float hxOpen(float s) {
   return hxWin(s, HX_TA, uBub.x, HX_EDGE) + uBub.w * hxWin(s, HX_NA, uBub.z, HX_EDGE);
+}
+
+// Displacement (sideways, along the axis) over a run of length len that starts
+// at tangent angle phi0 and turns at k radians per nm.
+vec2 hxArc(float phi0, float k, float len) {
+  if (abs(k) < 1e-5) return len * vec2(sin(phi0), cos(phi0));
+  float phi1 = phi0 + k * len;
+  return vec2(cos(phi0) - cos(phi1), sin(phi1) - sin(phi0)) / k;
+}
+// The hook, by arc length u from its outermost point: a quarter turn each way,
+// then an arm that eases onto a straight line. h scales every angle, so h = 0
+// is the straight axis. Returns the position and the tangent angle.
+vec2 hxHook(float u, float h, out float phi) {
+  float v = abs(u);
+  float sg = u < 0.0 ? -1.0 : 1.0;
+  float k1 = -sg / ${f(HOOK_R)};
+  float phiA = -sg * 1.5707963;
+  float k2 = sg > 0.0 ? -${f(HOOK_TOP.tilt / HOOK_TOP.over)} : -${f(HOOK_TAIL.tilt / HOOK_TAIL.over)};
+  float l2 = sg > 0.0 ? ${f(HOOK_TOP.over)} : ${f(HOOK_TAIL.over)};
+  float a = ${f((Math.PI / 2) * HOOK_R)};
+  float v1 = min(v, a);
+  vec2 p = hxArc(0.0, h * k1, v1);
+  phi = h * k1 * v1;
+  if (v > a) {
+    float v2 = min(v - a, l2);
+    p += hxArc(h * phiA, h * k2, v2);
+    phi = h * (phiA + k2 * v2);
+    if (v - a > l2) p += hxArc(phi, 0.0, v - a - l2);
+  }
+  return sg * p;
 }
 float hxEnd(float side) { return HX_SC + (side > 0.0 ? ${f(DEL_U)} : -${f(DEL_L)}) * uRep.x; }
 
@@ -187,7 +240,65 @@ vec3 hxCentre(float s, float st, float side, out float theta) {
   vec2 sw = uSway.x * vec2(
     sin(s * ${f(SWAY_K)} + uSway.y * 0.35) + 0.45 * sin(s * ${f(SWAY_K * 2.3)} - uSway.y * 0.22 + 1.7),
     0.8 * sin(s * ${f(SWAY_K * 0.9)} + uSway.y * 0.28 + 2.4));
-  return vec3(R * cos(theta) + off.x + sw.x, y, -R * sin(theta) + off.y + sw.y);
+  vec2 r = vec2(R * cos(theta) + off.x + sw.x, -R * sin(theta) + off.y + sw.y);
+  vec2 n = vec2(cos(theta), -sin(theta));
+  if (uHook.x < 1e-4) {
+    hxRad = vec3(n.x, 0.0, n.y);
+    return vec3(r.x, y, r.y);
+  }
+  // Bend: carry the point from the straight axis to the same arc length on the hook.
+  vec2 D = uHook.zw;
+  vec2 P = vec2(-D.y, D.x);
+  float phi;
+  vec2 q = hxHook(y - uHook.y, uHook.x, phi);
+  float cp = cos(phi);
+  float sn = sin(phi);
+  float nd = dot(n, D);
+  vec2 nxz = D * (nd * cp) + P * dot(n, P);
+  hxRad = vec3(nxz.x, -nd * sn, nxz.y);
+  float rd = dot(r, D);
+  vec2 xz = D * (q.x + rd * cp) + P * dot(r, P);
+  return vec3(xz.x, uHook.y + q.y - rd * sn, xz.y);
+}
+`;
+
+const TUBE_PARS = (groove) => /* glsl */ `
+attribute vec4 aBead; // x: base-pair coordinate  y: strand  z: side  w: angle around the tube
+attribute float aFull; // 0 on the collapsed ring that closes a cut end
+varying vec4 vHx;      // x: dim  y: scar  z: glint  w: tint seed
+${HX_COMMON}
+void hxTube(out vec3 pos, out vec3 nrm) {
+  float s = aBead.x;
+  float st = aBead.y;
+  float side = aBead.z;
+  float ang = aBead.w;
+  float sEnd = hxEnd(side);
+  float th, thb;
+  vec3 T = normalize(hxCentre(s + 0.06, st, side, thb) - hxCentre(s - 0.06, st, side, thb));
+  vec3 c = hxCentre(s, st, side, th);
+  vec3 N = normalize(hxRad - T * dot(hxRad, T));
+  vec3 B = cross(T, N);
+
+  // Nothing past the frayed end; the ring just beyond it closes the tube.
+  float past = side * (s - sEnd);
+  float keep = smoothstep(-0.12, 0.0, past) * aFull;
+  float dEnd = abs(s - sEnd);
+  float scar = uRep.w * exp(-dEnd * dEnd / 0.55);
+  float taper = smoothstep(0.0, 8.0, ${f(HALF)} - abs(s));
+  float wave = ang * 2.0 + s * 1.1;
+  float r = ${f(TUBE_R)} * uThick * keep * taper * (1.0 + 0.35 * scar) * (1.0 + ${f(groove)} * sin(wave));
+
+  vec3 radial = N * cos(ang) + B * sin(ang);
+  vec3 around = B * cos(ang) - N * sin(ang);
+  pos = c + radial * r;
+  nrm = aFull < 0.5 ? -side * T : normalize(radial - around * (${f(groove * 2)} * cos(wave)));
+
+  float dCut = abs(s - HX_SC);
+  float x = dCut - uCut.y;
+  vHx.x = uMisc.x * hxWin(s, ${f(DIM.from)}, ${f(DIM.to + 1)}, 3.0);
+  vHx.y = scar;
+  vHx.z = uCut.z * 0.35 * exp(-x * x / 10.0) + uMisc.y * exp(-dEnd * dEnd / 1.2);
+  vHx.w = 0.5 + 0.5 * sin(s * 0.19 + st * 2.1);
 }
 `;
 
@@ -202,34 +313,22 @@ void hxBead(out vec3 pos, out vec3 nrm) {
   float side = aBead.z;
   float sEnd = hxEnd(side);
   float th, thb;
-  vec3 c = hxCentre(s, st, side, th);
   vec3 T = normalize(hxCentre(s + 0.06, st, side, thb) - hxCentre(s - 0.06, st, side, thb));
-  vec3 N0 = vec3(cos(th), 0.0, -sin(th));
-  vec3 N = normalize(N0 - T * dot(N0, T));
+  vec3 c = hxCentre(s, st, side, th);
+  vec3 N = normalize(hxRad - T * dot(hxRad, T));
   vec3 B = cross(T, N);
 
-  // Beads past the frayed end are gone; those next to it shrink a little.
-  float past = side * (s - sEnd);
-  float keep = smoothstep(-0.05, 0.25, past);
+  // Shards exist only around the snap: thrown outward, shrinking as they go.
   float dEnd = abs(s - sEnd);
-  float scar = uRep.w * exp(-dEnd * dEnd / 0.55);
-  float taper = smoothstep(0.0, 8.0, ${f(HALF)} - abs(s));
-  float r = aBead.w * keep * taper * (1.0 + 0.35 * scar);
-
-  // At the break, the nearest beads are thrown outward and settle back.
+  float r = aBead.w * uMisc.w;
   float h = aOff.w;
   vec3 dir = normalize(vec3(cos(h * 43.9), side * (0.2 + 0.8 * fract(h * 13.7)), sin(h * 43.9)));
-  vec3 fly = dir * uMisc.z * uMisc.w * exp(-dEnd / 0.9) * (0.4 + 0.9 * fract(h * 71.3));
+  vec3 fly = dir * uMisc.z * exp(-dEnd / 2.0) * (0.4 + 0.9 * fract(h * 71.3));
 
   pos = c + N * aOff.x + B * aOff.y + fly + position * r;
   nrm = normal;
 
-  float dCut = abs(s - HX_SC);
-  float x = dCut - uCut.y;
-  vHx.x = uMisc.x * hxWin(s, ${f(DIM.from)}, ${f(DIM.to + 1)}, 3.0);
-  vHx.y = scar;
-  vHx.z = uCut.z * 0.35 * exp(-x * x / 10.0) + uMisc.y * exp(-dEnd * dEnd / 1.2);
-  vHx.w = aOff.z;
+  vHx = vec4(0.0, 0.0, uMisc.y * exp(-dEnd * dEnd / 1.2), aOff.z);
 }
 `;
 
@@ -253,10 +352,10 @@ void hxRung(out vec3 pos, out vec3 nrm) {
   vec3 dir = d / L0;
   float open = smoothstep(0.03, 0.55, hxOpen(s));
   float L = mix(L0 - ${f(RUNG_GAP)}, ${f(RUNG_OPEN)}, open) * mix(0.35, 1.0, aState.z) * (1.0 - 0.2 * aState.w);
-  vec3 e1 = normalize(cross(vec3(0.0, 1.0, 0.0), dir));
+  vec3 e1 = normalize(cross(abs(dir.y) > 0.9 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0), dir));
   vec3 e2 = cross(dir, e1);
   float along = position.y * (L - ${f(RUNG_CH)}) + aTip * ${f(RUNG_CH)};
-  pos = own + dir * along + (e1 * position.x * ${f(RUNG_W)} + e2 * position.z * ${f(RUNG_T)}) * aState.z;
+  pos = own + dir * along + (e1 * position.x * ${f(RUNG_W)} + e2 * position.z * ${f(RUNG_T)}) * aState.z * uThick;
   vec2 nr = normalize(vec2(normal.x / ${f(RUNG_W)}, normal.z / ${f(RUNG_T)}) + 1e-5) * length(normal.xz);
   nrm = normalize(e1 * nr.x + e2 * nr.y + dir * normal.y);
   vHx = vec4(aState.y, aState.x, 0.0, 0.0);
@@ -277,25 +376,73 @@ function rand(seed) {
   return x - Math.floor(x);
 }
 
-function buildBeads(perBp, widthSeg, heightSeg) {
+// Both backbones as one mesh: rings of vertices that only know their place
+// along the helix and their angle around the tube. Each strand is two pieces,
+// below and above the cut, each closed at the cut by a collapsed ring.
+function buildTubes(perBp, radial) {
+  const bead = [];
+  const full = [];
+  const idx = [];
+  const ring = (s, strand, side, isFull) => {
+    const base = full.length;
+    for (let j = 0; j < radial; j++) {
+      bead.push(s, strand, side, (j / radial) * Math.PI * 2);
+      full.push(isFull);
+    }
+    return base;
+  };
+  const link = (a, b) => {
+    for (let j = 0; j < radial; j++) {
+      const j1 = (j + 1) % radial;
+      idx.push(a + j, b + j1, b + j, a + j, a + j1, b + j1);
+    }
+  };
+  for (let strand = 0; strand < 2; strand++) {
+    for (const [side, from, to] of [
+      [-1, -HALF, CUT_S],
+      [1, CUT_S, HALF],
+    ]) {
+      let prev = side > 0 ? ring(from, strand, side, 0) : null;
+      const n = (to - from) * perBp;
+      for (let i = 0; i <= n; i++) {
+        const r = ring(from + i / perBp, strand, side, 1);
+        if (prev !== null) link(prev, r);
+        prev = r;
+      }
+      if (side < 0) link(prev, ring(to, strand, side, 0));
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  // Placeholders: the shader computes both, but the material expects the attributes.
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(full.length * 3), 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(full.length * 3), 3));
+  geo.setAttribute('aBead', new THREE.Float32BufferAttribute(bead, 4));
+  geo.setAttribute('aFull', new THREE.Float32BufferAttribute(full, 1));
+  geo.setIndex(idx);
+  geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), HALF * RISE + 6);
+  return geo;
+}
+
+// The shards: a handful of small spheres on the backbones either side of the cut.
+function buildShards(perBp, widthSeg, heightSeg) {
   const sphere = new THREE.SphereGeometry(1, widthSeg, heightSeg);
   const geo = new THREE.InstancedBufferGeometry();
   geo.index = sphere.index;
   geo.setAttribute('position', sphere.getAttribute('position'));
   geo.setAttribute('normal', sphere.getAttribute('normal'));
 
-  const count = HALF * 2 * 2 * perBp;
+  const count = SHARD_SPAN * 2 * 2 * perBp;
   const bead = new Float32Array(count * 4);
   const off = new Float32Array(count * 4);
   let k = 0;
   for (let strand = 0; strand < 2; strand++) {
-    for (let i = -HALF; i < HALF; i++) {
+    for (let i = CUT_S - SHARD_SPAN; i < CUT_S + SHARD_SPAN; i++) {
       for (let j = 0; j < perBp; j++) {
         const s = i + (j + 0.5) / perBp;
         const seed = rand(strand * 7919 + i * 31 + j * 7);
         const a = j * 2.4 + i * 1.3 + strand * 0.8 + seed * 0.9;
         const ring = BEAD_RING * (0.7 + 0.6 * rand(seed * 11));
-        bead.set([s, strand, s < CUT_S ? -1 : 1, BEAD_R * (0.82 + 0.36 * rand(seed * 3))], k * 4);
+        bead.set([s, strand, s < CUT_S ? -1 : 1, BEAD_R * (0.7 + 0.6 * rand(seed * 3))], k * 4);
         off.set([Math.cos(a) * ring * 1.15, Math.sin(a) * ring, rand(seed * 5), seed], k * 4);
         k++;
       }
@@ -308,33 +455,38 @@ function buildBeads(perBp, widthSeg, heightSeg) {
   return { geo, dispose: () => (geo.dispose(), sphere.dispose()) };
 }
 
-// One half-rung: x,z on the unit circle, y from 0 (in the backbone) to 1 (the
-// join), plus a short chamfered tip. Scaled into a slat by the shader.
-// One half-rung: a chain of beads. x,z are in units of the bead radius
-// (scaled by RUNG_W/RUNG_T in the shader), y runs 0 (in the backbone) to 1 (the join).
+// One half-rung: a round rod. x,z are on the unit circle (scaled by
+// RUNG_W/RUNG_T in the shader), y runs 0 (in the backbone) to 1 (the join),
+// and the end is closed by a short chamfered tip.
 function buildRungTemplate(radial) {
   const pos = [];
   const nor = [];
   const tip = [];
   const idx = [];
-  const sphere = new THREE.SphereGeometry(1, radial, Math.max(4, radial - 2));
-  const sp = sphere.getAttribute('position');
-  const sn = sphere.getAttribute('normal');
-  const si = sphere.index.array;
-  const ys = [0.14, 0.38, 0.62, 0.86];
-  ys.forEach((y, b) => {
-    const base = pos.length / 3;
-    const jx = (rand(b * 3.7) - 0.5) * 0.5;
-    const jz = (rand(b * 9.1) - 0.5) * 0.5;
-    const ry = 0.14;
-    for (let v = 0; v < sp.count; v++) {
-      pos.push(sp.getX(v) + jx, y + sp.getY(v) * ry, sp.getZ(v) + jz);
-      nor.push(sn.getX(v), sn.getY(v), sn.getZ(v));
-      tip.push(0);
+  // [radius, y, tip, normal outwards, normal along]
+  const rings = [
+    [1, 0, 0, 1, 0],
+    [1, 1, 0, 1, 0],
+    [0.62, 1, 1, 0.7, 0.7],
+    [0, 1, 1, 0, 1],
+  ];
+  for (const [r, y, t, no, na] of rings) {
+    for (let j = 0; j < radial; j++) {
+      const a = (j / radial) * Math.PI * 2;
+      pos.push(Math.cos(a) * r, y, Math.sin(a) * r);
+      nor.push(Math.cos(a) * no, na, Math.sin(a) * no);
+      tip.push(t);
     }
-    for (const i of si) idx.push(base + i);
-  });
-  sphere.dispose();
+  }
+  for (let k = 0; k < rings.length - 1; k++) {
+    for (let j = 0; j < radial; j++) {
+      const j1 = (j + 1) % radial;
+      const a = k * radial;
+      const b = a + radial;
+      // The shader's frame (e1, dir, e2) is left-handed, hence this winding.
+      idx.push(a + j, b + j1, b + j, a + j, a + j1, b + j1);
+    }
+  }
   return { pos, nor, tip, idx };
 }
 
@@ -405,60 +557,73 @@ export function create(ctx) {
     uGlint: { value: new THREE.Color(ctx.tokens.glass) },
     uRed: { value: new THREE.Color(GOLD) },
     uSway: { value: new THREE.Vector2() },
+    uThick: { value: 1 },
+    uHook: { value: new THREE.Vector4(0, axisPosition(HOOK_S - 0.5), 1, 0) },
     uRedGlow: { value: ctx.materials.guide.emissiveIntensity },
     uDimColor: { value: new THREE.Color(0x4a4560) },
   };
 
-  // Backbones: soft, satin beads in lilac and pink, with a faint inner glow at
+  // Backbones: smooth satin tubes in lilac and pink, with a faint inner glow at
   // the rim so they read as translucent without the cost of real transmission.
-  const beadMat = new THREE.MeshPhysicalMaterial({
-    color: 0xffffff,
-    roughness: 0.34,
-    metalness: 0,
-    clearcoat: 0.9,
-    clearcoatRoughness: 0.22,
-    sheen: 1,
-    sheenColor: new THREE.Color(0xf4c8ee),
-    sheenRoughness: 0.45,
-    envMapIntensity: 1.15,
-  });
   const tints = BACKBONE.map((h) => new THREE.Color(h));
-  beadMat.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, uniforms, {
-      uTintA: { value: tints[0] },
-      uTintB: { value: tints[1] },
-      uTintC: { value: tints[2] },
+  const backboneMaterial = (pars, call, key) => {
+    const mat = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      roughness: 0.34,
+      metalness: 0,
+      clearcoat: 0.9,
+      clearcoatRoughness: 0.22,
+      sheen: 1,
+      sheenColor: new THREE.Color(0xf4c8ee),
+      sheenRoughness: 0.45,
+      envMapIntensity: 1.15,
     });
-    patchVertex(shader, BEAD_PARS, 'hxBead');
-    shader.fragmentShader = shader.fragmentShader
-      .replace(
-        '#include <common>',
-        '#include <common>\nvarying vec4 vHx;\nuniform vec3 uGlint;\nuniform vec3 uDimColor;\nuniform vec3 uTintA;\nuniform vec3 uTintB;\nuniform vec3 uTintC;'
-      )
-      .replace(
-        '#include <color_fragment>',
-        `#include <color_fragment>
+    mat.onBeforeCompile = (shader) => {
+      Object.assign(shader.uniforms, uniforms, {
+        uTintA: { value: tints[0] },
+        uTintB: { value: tints[1] },
+        uTintC: { value: tints[2] },
+      });
+      patchVertex(shader, pars, call);
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nvarying vec4 vHx;\nuniform vec3 uGlint;\nuniform vec3 uDimColor;\nuniform vec3 uTintA;\nuniform vec3 uTintB;\nuniform vec3 uTintC;'
+        )
+        .replace(
+          '#include <color_fragment>',
+          `#include <color_fragment>
         vec3 tint = vHx.w < 0.5 ? mix(uTintA, uTintB, vHx.w * 2.0) : mix(uTintB, uTintC, vHx.w * 2.0 - 1.0);
         diffuseColor.rgb = mix(tint, uDimColor * 0.9, vHx.x * 0.85);`
-      )
-      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.6, vHx.y);')
-      .replace(
-        '#include <emissivemap_fragment>',
-        `#include <emissivemap_fragment>
+        )
+        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.6, vHx.y);')
+        .replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
         float rim = pow(1.0 - saturate(dot(normal, normalize(vViewPosition))), 2.5);
         totalEmissiveRadiance += diffuseColor.rgb * (0.08 + 0.45 * rim) * (1.0 - vHx.x * 0.8);
         totalEmissiveRadiance += uGlint * vHx.z;`
-      );
+        );
+    };
+    mat.customProgramCacheKey = () => key;
+    return mat;
   };
-  beadMat.customProgramCacheKey = () => 'helix-beads';
 
-  const beads = buildBeads(high ? BEADS_PER_BP : 3, high ? 10 : 8, high ? 7 : 6);
-  const backbone = new THREE.Mesh(beads.geo, beadMat);
+  const tubeMat = backboneMaterial(TUBE_PARS(high ? GROOVE : 0), 'hxTube', 'helix-tube');
+  const tubes = buildTubes(high ? TUBE_RINGS : 2, high ? 12 : 8);
+  const backbone = new THREE.Mesh(tubes, tubeMat);
   backbone.frustumCulled = false;
   backbone.name = 'helix-backbone';
   spinner.add(backbone);
 
-  // Rungs: satin beads in the base colours, with gold glow and dimming.
+  const shardMat = backboneMaterial(BEAD_PARS, 'hxBead', 'helix-shards');
+  const shards = buildShards(high ? BEADS_PER_BP : 3, 8, 6);
+  const shardMesh = new THREE.Mesh(shards.geo, shardMat);
+  shardMesh.frustumCulled = false;
+  shardMesh.name = 'helix-shards';
+  spinner.add(shardMesh);
+
+  // Rungs: satin rods in the base colours, with gold glow and dimming.
   const frost = new THREE.MeshPhysicalMaterial({
     color: 0xffffff,
     roughness: 0.42,
@@ -483,7 +648,7 @@ export function create(ctx) {
   };
   frost.customProgramCacheKey = () => 'helix-frost';
 
-  const rungs = buildRungs(high ? 9 : 6);
+  const rungs = buildRungs(high ? 12 : 8);
   const rungMesh = new THREE.Mesh(rungs.geo, frost);
   rungMesh.frustumCulled = false;
   rungMesh.name = 'helix-rungs';
@@ -501,6 +666,7 @@ export function create(ctx) {
     site3: [DECOYS[3] + 0.5, 1],
     site4: [DECOYS[4] + 0.5, 1],
     editSite: [EDIT + 0.5, -1],
+    hook: [HOOK_S, 1],
     top: [HALF, 1],
     bottom: [-HALF, -1],
   };
@@ -575,6 +741,18 @@ export function create(ctx) {
     uniforms.uMisc.value.set(dim, flash, shardTravel, shardSize);
     const swayAmp = SWAY_AMP * clamp01(p.sway);
     uniforms.uSway.value.set(swayAmp, time);
+    // The hook's plane faces the camera, so it must not turn with the spin:
+    // hand the shader the plane's direction in the spinner's own frame.
+    const az = THREE.MathUtils.degToRad(p.hookAzimuth);
+    const psi = spinner.rotation.y;
+    const hx = Math.sin(az);
+    const hz = -Math.cos(az);
+    uniforms.uHook.value.z = hx * Math.cos(psi) - hz * Math.sin(psi);
+    uniforms.uHook.value.w = hx * Math.sin(psi) + hz * Math.cos(psi);
+    uniforms.uHook.value.x = clamp01(p.hook);
+    // Ease the thickness so the last of it goes quickly rather than lingering as a hairline.
+    uniforms.uThick.value = Math.pow(clamp01(p.presence), 0.7);
+    shardMesh.visible = shardSize > 0.001;
 
     // Per-rung state: red glow, dim, scale.
     for (let i = 0; i < state.length; i += 4) {
@@ -617,11 +795,21 @@ export function create(ctx) {
       state[rungIndex(EDIT, 0)] = smooth(0, 0.6, edit);
       state[rungIndex(EDIT, 1)] = smooth(0.4, 1, edit);
     }
+    // Only every second rung stands by default. The others grow in where the
+    // story needs single letters: wherever one glows, and inside an open bubble.
+    const win = (x, a, b) => 0.5 * (Math.tanh((x - a) / EDGE) - Math.tanh((x - b) / EDGE));
+    for (let bp = -HALF + 1; bp < HALF; bp += 2) {
+      const j = rungIndex(bp, 0);
+      const open = win(bp + 0.5, ta, tb) + NEAR_AMP * win(bp + 0.5, NEAR.from - 0.3, nb);
+      const show = Math.max(state[j], state[j + 4], smooth(0.02, 0.3, open));
+      state[j + 2] = show;
+      state[j + 6] = show;
+    }
     if (erode > 0) {
       const fade = (bp, t) => {
         const sc = 1 - smooth(0, 1, t);
-        state[rungIndex(bp, 0) + 2] = sc;
-        state[rungIndex(bp, 1) + 2] = sc;
+        state[rungIndex(bp, 0) + 2] *= sc;
+        state[rungIndex(bp, 1) + 2] *= sc;
       };
       fade(-8, erode * 1.6);
       fade(-7, erode * 2.2);
@@ -657,9 +845,11 @@ export function create(ctx) {
     axisPosition,
     update,
     dispose() {
-      beads.dispose();
+      tubes.dispose();
+      shards.dispose();
       rungs.geo.dispose();
-      beadMat.dispose();
+      tubeMat.dispose();
+      shardMat.dispose();
       frost.dispose();
     },
   };

@@ -291,6 +291,25 @@ main {
   margin-left: -0.04em;
 }
 
+/* One word of the title in the helix's colours: backbone lilac and pink, then the four bases. */
+.line__accent {
+  background: linear-gradient(
+    100deg,
+    var(--dna-lilac) 0%,
+    var(--dna-pink) 18%,
+    var(--base-c) 36%,
+    var(--base-a) 54%,
+    var(--base-g) 72%,
+    var(--base-t) 92%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  /* Room for the italic-like overhang of the last letter, so the clip does not cut it. */
+  padding: 0.12em 0.04em 0.12em 0;
+  margin-right: -0.04em;
+}
+
 .copy--lede {
   max-width: 31ch;
   margin-top: clamp(1.75rem, 4.4vh, 3rem);

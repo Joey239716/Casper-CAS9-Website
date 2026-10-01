@@ -10,6 +10,7 @@ const registry = {
   cells: () => import('./scene/cells.js'),
   nucleus: () => import('./scene/nucleus.js'),
   letters: () => import('./scene/letters.js'),
+  hemoglobin: () => import('./scene/hemoglobin.js'),
 };
 
 const query = new URLSearchParams(location.search);

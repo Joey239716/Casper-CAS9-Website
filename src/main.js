@@ -11,12 +11,12 @@ import * as cellsModule from './scene/cells.js';
 import * as nucleusModule from './scene/nucleus.js';
 import * as lettersModule from './scene/letters.js';
 import * as haloModule from './scene/halo.js';
-import { createWeave } from './scene/weave.js';
+import * as hemoglobinModule from './scene/hemoglobin.js';
 import { createPost } from './scene/post.js';
 import { scenes, formatScale, formatCount } from './content/scenes.js';
 import { createAnnotations } from './scroll/annotations.js';
 import { createProgress } from './scroll/progress.js';
-import { choreograph, readLayout, anchorWorld, annotationAlpha } from './scroll/timeline.js';
+import { choreograph, readLayout, anchorWorld, annotationAlpha, HEMO_END } from './scroll/timeline.js';
 import { clamp01, createPose, copyPose, dampPose, applyPose, attachToCamera } from './scroll/cameraPath.js';
 
 const query = new URLSearchParams(location.search);
@@ -81,8 +81,13 @@ function readProgress() {
 }
 
 function updateReadouts() {
-  // 6 micrometres down to 2 nanometres, on a log scale, over the dive.
-  if (readouts.scale) readouts.scale.textContent = formatScale(6e-6 * Math.pow(2e-9 / 6e-6, clamp01(sp.spare / 0.86)));
+  // 6 micrometres down to 2 nanometres, on a log scale, over the dive. Hidden
+  // while the hemoglobin is up: that opening is not part of the zoom.
+  if (readouts.scale) {
+    const dive = clamp01((sp.spare - HEMO_END) / (0.86 - HEMO_END));
+    readouts.scale.textContent = formatScale(6e-6 * Math.pow(2e-9 / 6e-6, dive));
+    readouts.scale.parentElement.style.opacity = sp.spare < HEMO_END ? '0' : '';
+  }
   if (readouts.count) readouts.count.textContent = formatCount(3.055e9 * sp.library);
 }
 
@@ -110,27 +115,19 @@ async function start() {
   const ctx = createContext({ canvas, quality });
   const { renderer, scene, camera } = ctx;
 
-  const [helix, cas9, cells, nucleus, letters, halo] = await Promise.all([
+  const [helix, cas9, cells, nucleus, letters, halo, hemoglobin] = await Promise.all([
     helixModule.create(ctx),
     cas9Module.create(ctx),
     cellsModule.create(ctx),
     nucleusModule.create(ctx),
     lettersModule.create(ctx),
     haloModule.create(ctx),
+    hemoglobinModule.create(ctx),
   ]);
-  const models = { helix, cas9, cells, nucleus, letters, halo };
+  const models = { helix, cas9, cells, nucleus, letters, halo, hemoglobin };
   for (const m of Object.values(models)) scene.add(m.group);
   // The dive is locked to the camera; its distant haze stays in the world.
   const post = createPost(ctx);
-  // The near strands of the helix, redrawn above the title text (desktop only).
-  const weave = await createWeave({
-    helixModule,
-    quality,
-    after: document.getElementById('main'),
-    keyLight: ctx.keyLight,
-    clipTo: document.getElementById('line-title'),
-    scrim: document.querySelector('.scrim'),
-  });
 
   const stage = {
     models,
@@ -147,6 +144,7 @@ async function start() {
   stage.layout = readLayout(stage);
 
   const cellsView = cellsModule.meta.views.hero;
+  const hemoglobinView = hemoglobinModule.meta.views.hero;
   const current = createPose();
   let first = true;
 
@@ -158,7 +156,6 @@ async function start() {
     // screens, and above the copy on narrow ones.
     applyFraming();
     post.setSize?.(width, height);
-    weave.resize();
     measure();
   }
   // Framing: the subject sits on the side opposite the text, gliding across
@@ -180,9 +177,12 @@ async function start() {
     if (current.id !== shownId) {
       for (const s of sections) s.el.classList.toggle('is-in', s === current);
       shownId = current.id;
-      frameTarget = sideOf[current.id] ?? -1;
-      root.classList.toggle('copy-right', frameTarget === 1);
+      root.classList.toggle('copy-right', sideOf[current.id] === 1);
     }
+    // The helix arrives at the end of "spare" already on the side it holds in
+    // "library", so the framing moves across before it has appeared, not after.
+    const framed = current.id === 'spare' && sp.spare > 0.72 ? 'library' : current.id;
+    frameTarget = sideOf[framed] ?? -1;
     const next = shotMode || reduced ? frameTarget : frameSide + (frameTarget - frameSide) * (1 - Math.exp(-dt * 2.6));
     if (Math.abs(next - frameSide) > 1e-4 || first) {
       frameSide = next;
@@ -259,6 +259,7 @@ async function start() {
 
     // Camera-locked sets: the cell field and the dive.
     if (cells.group.visible) attachToCamera(cells.group, camera, cellsView);
+    if (hemoglobin.params.presence > 0.001) attachToCamera(hemoglobin.group, camera, hemoglobinView);
     // A slight turn of the head with the pointer, so camera-locked fields also shift.
     camera.rotateY(-pointerSmooth.x * 0.02);
     camera.rotateX(-pointerSmooth.y * 0.014);
@@ -266,7 +267,6 @@ async function start() {
 
     for (const m of Object.values(models)) m.update?.(time, dt);
     post.render(dt, time);
-    weave.render(camera, helix, current.look, time, stage.active === 'title' && !stage.narrow);
 
     // Annotations: project each anchor to the screen.
     if (annotations) {

@@ -132,6 +132,7 @@ function addHinge(shader, uniforms) {
 // black, so the form reads as obsidian. This adds what a thick piece of glass would
 // show: the panels refracted through the body, with a little dispersion.
 // Fragment-only, no extra draw calls. See request R-02-1 in agents/status/02-cas9.md.
+const CAS9_TINT = 0xb9f2ec;
 const BODY = { refract: 0.42, inner: 0.1, spread: 0.035, rough: 0.1, wall: 0.2, wallRough: 0.2 };
 
 function thickGlass(material, hinge) {
@@ -305,6 +306,12 @@ export async function create(ctx) {
   // Two variants of the shared glass: solid, and one that can fade (presence < 1).
   const glass = own(thickGlass(ctx.materials.glass.clone(), hingeUniforms));
   const glassFade = own(thickGlass(ctx.materials.glass.clone(), hingeUniforms));
+  // Tinted glass (D-010): a cool aqua, so the protein has a colour of its own
+  // against the lilac helix and the gold guide.
+  for (const m of [glass, glassFade]) {
+    m.color.set(CAS9_TINT);
+    m.attenuationColor.set(CAS9_TINT);
+  }
   glassFade.transparent = true;
   const wall = high ? own(innerWall(BODY.wall, hingeUniforms)) : null;
 

@@ -13,16 +13,12 @@ export function detectQuality() {
   return small || coarse ? 'low' : 'high';
 }
 
-// overlay: a transparent context with the same lighting and no backdrop, for
-// drawing a model a second time above the page text.
-export function createContext({ canvas, quality = detectQuality(), overlay = false }) {
+export function createContext({ canvas, quality = detectQuality() }) {
   const renderer = new THREE.WebGLRenderer({
     canvas,
     antialias: true,
-    alpha: overlay,
     powerPreference: 'high-performance',
   });
-  if (overlay) renderer.setClearColor(0x000000, 0);
   // Clear glass is costly per pixel, so stop short of full retina resolution.
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality === 'high' ? 1.5 : 1.25));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -32,10 +28,10 @@ export function createContext({ canvas, quality = detectQuality(), overlay = fal
   renderer.transmissionResolutionScale = 0.5;
 
   const scene = new THREE.Scene();
-  if (!overlay) scene.background = new THREE.Color(tokens.darkfield);
+  scene.background = new THREE.Color(tokens.darkfield);
   scene.environment = createEnvironment(renderer);
   scene.fog = new THREE.FogExp2(tokens.darkfield, 0.012);
-  if (!overlay) scene.add(createBackdrop());
+  scene.add(createBackdrop());
 
   const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 2000);
   camera.position.set(0, 0, 30);

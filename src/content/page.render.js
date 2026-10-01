@@ -31,9 +31,20 @@ function cite(keys = []) {
 }
 
 /** One block per sentence, so a two-sentence line breaks where the thought does. */
-function lineSpans(line) {
+function lineSpans(line, accent) {
   const sentences = line.match(/[^.?!]+[.?!]?/g)?.map((s) => s.trim()).filter(Boolean) ?? [line];
-  return sentences.map((s) => h('span', { class: 'line__sentence' }, s));
+  return sentences.map((s) => {
+    // One word may be picked out in the helix's colours (scene.accent).
+    const at = accent ? s.indexOf(accent) : -1;
+    if (at < 0) return h('span', { class: 'line__sentence' }, s);
+    return h(
+      'span',
+      { class: 'line__sentence' },
+      s.slice(0, at),
+      h('span', { class: 'line__accent' }, accent),
+      s.slice(at + accent.length),
+    );
+  });
 }
 
 function note(a) {
@@ -64,7 +75,7 @@ const RIGHT = new Set(['problem', 'library', 'search', 'cut', 'payoff']);
 
 function pinnedScene(s) {
   const isTitle = s.id === 'title';
-  const heading = h(isTitle ? 'h1' : 'h2', { class: isTitle ? 'line line--title' : 'line', id: `line-${s.id}` }, lineSpans(s.line));
+  const heading = h(isTitle ? 'h1' : 'h2', { class: isTitle ? 'line line--title' : 'line', id: `line-${s.id}` }, lineSpans(s.line, s.accent));
   const copy = h(
     'div',
     { class: 'scene__copy' },

@@ -7,6 +7,14 @@
   --frost: #8c9aad;
   --arterial: #c4122f;
 
+  /* The helix: backbone tints and one colour per base. Mirrors src/scene/helix.js. */
+  --dna-lilac: #b48be4;
+  --dna-pink: #e39bd0;
+  --base-c: #f38f7c;
+  --base-a: #f5cf6a;
+  --base-g: #86d6a2;
+  --base-t: #7fa6f0;
+
   --font-display: 'Bodoni Moda', 'Didot', 'Bodoni 72', serif;
   --font-text: 'Instrument Sans', 'Helvetica Neue', Arial, sans-serif;
 

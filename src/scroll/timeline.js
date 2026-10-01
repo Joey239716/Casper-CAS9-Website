@@ -35,13 +35,21 @@ export function readLayout(stage) {
     pam: y('pam', 3.9),
     cut: y('cutSite', 2.4),
     edit: y('editSite', -10.2),
+    hook: y('hook', 66.3), // where the title's hook is centred
   };
 }
 
-// Title: how far (world units) the camera slides along its own right so the
-// helix crosses the title, and how much harder it leans.
-const TITLE_SHIFT = 4;
-const TITLE_ROLL = -8;
+// Title: the helix is bent into a hook around the title (helix param `hook`),
+// in a plane facing the camera. The hook's outermost point is on the axis, so
+// the camera slides this far (world units) along its own right to bring the
+// rest of it into frame.
+const TITLE_SHIFT = -7.3;
+const TITLE_AZIMUTH = 62;
+const TITLE_DROP = 0.9;
+
+// "Spare": the hemoglobin holds the stage until this point in the scene; the
+// dive into the nucleus takes the rest.
+export const HEMO_END = 0.26;
 
 const poseA = createPose();
 const poseB = createPose();
@@ -58,7 +66,7 @@ function cas9At(out, height, lift) {
 }
 
 export function choreograph(stage, sp, time) {
-  const { helix, cas9, cells, nucleus, letters, halo } = stage.models;
+  const { helix, cas9, cells, nucleus, letters, halo, hemoglobin } = stage.models;
   const L = stage.layout;
   const pose = stage.pose;
   const narrow = stage.narrow; // phone: subject is centred, so stay a little further out
@@ -112,6 +120,11 @@ export function choreograph(stage, sp, time) {
   put(helix, 'repair', ease(sp.repair, 0.22, 0.5));
   put(helix, 'dim', ease(sp.repair, 0.44, 0.64) * (1 - ease(sp.beyond, 0, 0.15)));
   put(helix, 'edit', ease(sp.beyond, 0.28, 0.52));
+  // Title: bent into the hook, straightening as the title scrolls away.
+  const titleOn = 1 - ease(sp.title, 0.55, 0.92);
+  const hooked = narrow ? 0 : titleOn;
+  put(helix, 'hook', hooked);
+  put(helix, 'hookAzimuth', TITLE_AZIMUTH);
   // The axis straightens while Cas9 is on it, and drifts again once it has left.
   put(helix, 'sway', 1 - ease(sp.reader, 0.25, 0.7) * (1 - ease(sp.repair, 0.3, 0.9)));
   // No idle rotation while Cas9 is working on the helix.
@@ -171,17 +184,25 @@ export function choreograph(stage, sp, time) {
   put(cells, 'flow', -25 + sp.problem * 37 + sp.payoff * 8 + sp.practice * 20);
   if (cells) cells.group.visible = cellsSeen > 0.001;
 
+  // ---- Hemoglobin --------------------------------------------------------
+  // "Spare" opens on one hemoglobin: it arrives as the cells leave, two of its
+  // chains turn from adult to fetal, and it goes as the dive begins.
+  const hemoSeen = ease(sp.problem, 0.86, 1) * (1 - ease(sp.spare, HEMO_END - 0.05, HEMO_END + 0.01));
+  put(hemoglobin, 'presence', hemoSeen);
+  put(hemoglobin, 'fetal', ease(sp.spare, 0.07, 0.19));
+  put(hemoglobin, 'spin', sp.problem * 0.1 + sp.spare * 0.5);
+
   // ---- Nucleus -----------------------------------------------------------
   // The dive layer rides on the camera by itself. In: during "spare". Out: the
   // same dive run backwards at the start of "payoff". At descent = 1 only the
   // distant chromatin haze around the helix remains.
-  const diveIn = ease(sp.spare, 0.0, 0.86);
+  const diveIn = ease(sp.spare, HEMO_END, 0.86);
   const diveOut = ease(sp.payoff, 0.0, 0.24);
   const back = sp.beyond > 0; // the helix returns for "beyond"
   put(nucleus, 'descent', back ? 1 : sp.payoff > 0 ? 1 - diveOut : diveIn);
   const nucleusSeen = back
     ? ease(sp.beyond, 0.04, 0.2)
-    : ease(sp.problem, 0.8, 1) * (1 - ease(sp.payoff, 0.2, 0.28));
+    : ease(sp.spare, HEMO_END - 0.06, HEMO_END + 0.04) * (1 - ease(sp.payoff, 0.2, 0.28));
   put(nucleus, 'presence', nucleusSeen);
   put(nucleus, 'haze', 0.55);
   if (nucleus) nucleus.group.visible = nucleusSeen > 0.001;
@@ -189,12 +210,20 @@ export function choreograph(stage, sp, time) {
 
   // ---- Letters -----------------------------------------------------------
   // The title opens on the letters too, thinning out as the camera pulls back.
-  const titleOn = 1 - ease(sp.title, 0.45, 0.85);
   put(letters, 'opacity', Math.max(ease(sp.spare, 0.85, 1) * (1 - ease(sp.payoff, 0, 0.15)), beyond, titleOn) * 0.9);
   put(letters, 'drift', sp.library * 1.0 + sp.search * 0.4 + sp.reader * 0.15);
 
   // ---- Helix visibility --------------------------------------------------
-  const helixSeen = sp.problem < 0.5 || (sp.spare > 0.72 && sp.payoff < 0.24) || sp.beyond > 0;
+  // It never pops in or out: its strands thin to nothing (param `presence`).
+  // Gone as the title pulls back, grown from threads as the dive arrives, gone
+  // again as the dive runs backwards, and back for "beyond".
+  const helixThick = Math.max(
+    1 - ease(sp.title, 0.6, 0.78),
+    ease(sp.spare, 0.83, 0.97) * (1 - ease(sp.payoff, 0, 0.08)),
+    ease(sp.beyond, 0, 0.14)
+  );
+  put(helix, 'presence', helixThick);
+  const helixSeen = helixThick > 0.001;
   if (helix) helix.group.visible = helixSeen;
   if (letters) letters.group.visible = helixSeen && letters.params.opacity > 0.001;
 
@@ -211,19 +240,21 @@ export function choreograph(stage, sp, time) {
   switch (active) {
     case 'title':
     case 'problem': {
-      centre.set(0, far0, 0);
+      // Square on to the hook while it is bent; the usual lean returns as it straightens.
+      centre.set(0, L.hook, 0);
       orbitPose(pose, centre, {
         radius: (30 + ease(sp.title, 0.6, 1) * FAR) * reach,
-        azimuth: 62,
-        height: 5,
-        roll: ROLL + TITLE_ROLL * titleOn,
+        azimuth: TITLE_AZIMUTH,
+        height: 5 * (1 - hooked),
+        roll: ROLL * (1 - hooked),
       });
-      // Slide sideways so the helix runs through the title, easing back as it pulls away.
       fwd.subVectors(pose.look, pose.pos).normalize();
       right.crossVectors(fwd, UP).normalize();
-      const shift = (narrow ? 0 : TITLE_SHIFT) * titleOn;
-      pose.pos.addScaledVector(right, shift);
-      pose.look.addScaledVector(right, shift);
+      pose.pos.addScaledVector(right, TITLE_SHIFT * hooked);
+      pose.look.addScaledVector(right, TITLE_SHIFT * hooked);
+      // And a little down, so the upper arm clears the top of the title.
+      pose.pos.y -= TITLE_DROP * hooked;
+      pose.look.y -= TITLE_DROP * hooked;
       break;
     }
     case 'spare': {
@@ -322,7 +353,8 @@ export function choreograph(stage, sp, time) {
   if (halo) {
     fwd.subVectors(pose.look, pose.pos).normalize();
     right.crossVectors(fwd, UP).normalize();
-    const shift = active === 'title' && !narrow ? TITLE_SHIFT * titleOn : 0;
+    // Behind the middle of the hook's arc, which lies one radius in from the axis.
+    const shift = active === 'title' ? (TITLE_SHIFT + 5.8) * hooked : 0;
     // On the line from the camera through the axis, so it sits right behind the helix.
     centre.copy(pose.look).addScaledVector(right, -shift);
     fwd.subVectors(centre, pose.pos).normalize();
@@ -347,6 +379,8 @@ function smoothTravel(t) {
 // Anything not listed uses the default.
 const annotationWindows = {
   default: [0.22, 0.7],
+  'spare-hbf': [0.1, 0.22],
+  'spare-switch': [0.42, 0.76],
 };
 
 export function annotationAlpha(def, sp, stage) {

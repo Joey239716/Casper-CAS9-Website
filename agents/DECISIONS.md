@@ -2,6 +2,38 @@
 
 Writer: coordinator. Newest first. Re-read this at the start of every round.
 
+## 2026-10-01 – D-011 The helix arrives and leaves as threads (client request)
+
+- New helix param `presence` (0..1): the strands and rungs thin to nothing. The choreography uses it instead of switching the helix on and off, so it grows from fine threads as the dive arrives and thins away when the camera pulls back (end of the title, start of "payoff"). This also removes the dark far-away helix that showed in front of the cells.
+- The framing moves to the "library" side from 72% of "spare", before the helix appears, so it no longer slides across the screen after arriving.
+
+## 2026-10-01 – D-010 More colour after the hemoglobin (client request)
+
+- Same assets, new colours. In `src/scene/nucleus.js` (coordinator edit) every kind of thing has its own hue (`HUE`): indigo envelope, pink pores, amber ribosomes, blue chromatin fibres, pink beads-on-a-string, mint threads, violet haze strands around the helix.
+- Cas9's glass is tinted a pale aqua (`CAS9_TINT` in `src/scene/cas9.js`, coordinator edit). The shared glass material is unchanged.
+- No geometry, params or anchors changed.
+
+## 2026-10-01 – D-009 A hemoglobin opens "spare"; simpler pores (client request)
+
+- New model `src/scene/hemoglobin.js` (coordinator): one stylised tetramer, four lobes each with a red heme disc, and a far crowd of simple copies. Params `presence`, `fetal` (the two violet beta lobes turn teal gamma), `spin`. Anchors `fetal`, `heme`. It rides on the camera like the cells.
+- "Spare" now runs: hemoglobin (scene progress 0 to 0.26, `HEMO_END` in `timeline.js`), then the dive (0.26 to 0.86). The scale readout is hidden until the dive starts.
+- New annotation `spare-hbf` (HbF is two alpha and two gamma chains; HbA has beta in their place). It has no reference yet and is not in the fact table: needs a source before release.
+- Nuclear pores are simplified in `src/scene/nucleus.js` (coordinator edit to 04's file): the cytoplasmic filaments and the nuclear basket are removed, the eight swellings are lower.
+- The client asked for more colour here: blue (alpha), violet (beta), teal (gamma), red (heme).
+
+## 2026-10-01 – D-008 Codons and a coloured title word (client request)
+
+- The drifting genetic text is now codons, not single letters: sixteen triplets from the opening of the HBB coding sequence (including GAG and GTG), each letter in its base colour. `src/scene/letters.js`; params unchanged.
+- One word of the title ("code") is set in a gradient of the helix's colours. The word is `accent` on the title scene in `src/content/scenes.js`; the colours are new tokens in `src/styles/tokens.css`. The coordinator edited 05-page's files for this.
+
+## 2026-10-01 – D-007 Ribbon helix and the title hook (client request)
+
+- The helix is no longer beaded. Each backbone is a smooth lilac tube; rungs are round rods, split into their two base colours. Changed in `src/scene/helix.js` by the coordinator; every existing param, anchor and site is unchanged.
+- Only every second rung is drawn (a stylisation the client chose). The hidden ones grow in wherever one glows or a bubble is open, so PAM flashes still show 3 rungs and the match still lights 20.
+- New helix params: `hook` (0..1) bends the axis into a "tsu" shaped hook around base pair 195, in a plane facing the camera at `hookAzimuth`. New anchor `hook`. The title uses it to wrap the helix around "Editing the code"; it straightens as the title scrolls away.
+- The title also shows the drifting letters and a soft violet glow behind the helix (`src/scene/halo.js`, coordinator).
+- The title weave overlay (`src/scene/weave.js`) is removed: the helix now goes around the title, not through it.
+
 ## 2026-10-01 – D-006 Colour and a beaded helix (client request)
 
 - The site is no longer monochrome. The helix is a beaded, space-filling style model: lilac-pink backbones, rungs in pastel base colours (A yellow, T blue, C coral, G mint).

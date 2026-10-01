@@ -18,6 +18,7 @@ export const scenes = [
   {
     id: 'title',
     line: 'Editing the code',
+    accent: 'code', // set in the helix's colours (page layer only)
     copy: 'How CRISPR-Cas9 finds one sequence among three billion letters, and what that means for sickle cell disease.',
     length: 100,
     annotations: [],
@@ -44,6 +45,12 @@ export const scenes = [
     length: 320,
     readout: 'scale',
     annotations: [
+      {
+        id: 'spare-hbf',
+        anchor: 'hemoglobin.fetal',
+        term: 'Fetal hemoglobin (HbF)',
+        text: 'Fetal hemoglobin (HbF) pairs two alpha chains with two gamma chains. Adult hemoglobin (HbA) has two beta chains in their place, and beta is the chain the sickle mutation alters.',
+      },
       {
         id: 'spare-switch',
         anchor: 'nucleus.clearing',

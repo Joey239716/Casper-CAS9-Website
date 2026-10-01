@@ -103,11 +103,25 @@ export function create(ctx) {
     uPresence: inner.uPresence,
   };
 
-  // Every solid surface is a clone of the shared frost, darkened and polished
-  // towards smoked glass so that edges and highlights draw the forms.
-  const solid = (shared, opts, { tone = 1, roughness = 0.5, env = 0.9, side = THREE.FrontSide } = {}) => {
+  // The dive's palette (D-010): each kind of thing has its own colour, taken
+  // from the helix and the hemoglobin, so the scene is no longer one grey-violet.
+  const HUE = {
+    wall: 0x4a48e0, // envelope: indigo
+    pore: 0xe57ccf, // pore rings: pink
+    channel: 0x8d5fe0, // the tunnel through the membrane: violet
+    ribosome: 0xf5cf6a, // amber
+    fibre: 0x6f9cf5, // thick chromatin fibres: blue
+    string: 0xe592c6, // beads on a string: pink
+    thread: 0x7ddcae, // bare DNA threads: mint
+    dust: 0xf5cf6a,
+    haze: 0x8a78f2, // soft strands around the helix: violet
+  };
+
+  // Every solid surface is a clone of the shared frost, tinted and polished so
+  // that edges and highlights draw the forms.
+  const solid = (shared, opts, { color = 0x9e92cc, tone = 1, roughness = 0.5, env = 0.9, side = THREE.FrontSide } = {}) => {
     const m = own(ctx.materials.frost.clone());
-    m.color.set(0x9e92cc).multiplyScalar(tone);
+    m.color.set(color).multiplyScalar(tone);
     m.roughness = roughness;
     m.envMapIntensity = env;
     m.side = side;
@@ -239,14 +253,15 @@ export function create(ctx) {
       `,
       light: POOL,
     },
-    { tone: 0.34, roughness: 0.46, env: 1.0 }
+    { color: HUE.wall, tone: 0.5, roughness: 0.46, env: 1.0 }
   );
   const wallGeo = own(new THREE.SphereGeometry(ENV_R, low ? 64 : 128, low ? 24 : 48, 0, Math.PI * 2, 0, CAP));
   wallGeo.rotateX(Math.PI / 2);
   wall.add(new THREE.Mesh(wallGeo, wallMat));
 
-  // Pore complex: eight-fold rings, a short channel, and (hero detail only) the
-  // nuclear basket behind and the cytoplasmic filaments in front. Local +Z is out.
+  // Pore complex, simplified (D-009): a smooth outer ring with eight low
+  // swellings, a short channel and an inner ring. The cytoplasmic filaments and
+  // the nuclear basket are left out; they read as hairs and spokes. Local +Z is out.
   function poreGeometry(hi) {
     const parts = [];
     const add = (g, m) => {
@@ -258,19 +273,9 @@ export function create(ctx) {
     add(new THREE.TorusGeometry(7.9, 1.5, hi ? 14 : 6, hi ? 80 : 28), move(0, 0, 0.5));
     for (let k = 0; k < 8; k++) {
       const a = (k + 0.5) * (Math.PI / 4);
-      const lobe = hi ? new THREE.SphereGeometry(2.1, 18, 12) : new THREE.IcosahedronGeometry(2.1, 1);
-      add(lobe, move(Math.cos(a) * 8.0, Math.sin(a) * 8.0, 1.1).multiply(new THREE.Matrix4().makeScale(1, 1, 0.8)));
+      const lobe = hi ? new THREE.SphereGeometry(1.7, 18, 12) : new THREE.IcosahedronGeometry(1.7, 1);
+      add(lobe, move(Math.cos(a) * 7.9, Math.sin(a) * 7.9, 0.7).multiply(new THREE.Matrix4().makeScale(1.25, 1.25, 0.7)));
     }
-    const filaments = (segs, radial) => {
-      // Cytoplasmic filaments, splaying out towards the viewer.
-      for (let k = 0; k < 8; k++) {
-        const a = (k + 0.5) * (Math.PI / 4);
-        const at = (r, z, da) => new THREE.Vector3(Math.cos(a + da) * r, Math.sin(a + da) * r, z);
-        const curve = new THREE.CatmullRomCurve3([at(8.2, 2.3, 0), at(9.4, 5.6, 0.1), at(11.2, 8.4, 0.3), at(12.2, 10.2, 0.62)]);
-        add(buildTube(curve, segs, radial, (u) => 0.34 * (1 - 0.75 * u)));
-      }
-    };
-    filaments(hi ? 14 : 7, hi ? 8 : 4);
     if (!hi) add(new THREE.TorusGeometry(6.25, 0.8, 5, 24), move(0, 0, -2.6));
     if (hi) {
       add(new THREE.TorusGeometry(6.25, 0.8, 10, 64), move(0, 0, -2.6));
@@ -279,19 +284,6 @@ export function create(ctx) {
         add(new THREE.SphereGeometry(1.15, 12, 8), move(Math.cos(a) * 6.3, Math.sin(a) * 6.3, -2.6));
       }
       add(new THREE.TorusGeometry(7.4, 1.15, 10, 64), move(0, 0, -5.7));
-      // Nuclear basket: eight filaments converging on a distal ring.
-      for (let k = 0; k < 8; k++) {
-        const a = (k + 0.5) * (Math.PI / 4);
-        const c = Math.cos(a);
-        const s = Math.sin(a);
-        const curve = new THREE.CatmullRomCurve3([
-          new THREE.Vector3(7.3 * c, 7.3 * s, -6.0),
-          new THREE.Vector3(6.6 * c, 6.6 * s, -10.0),
-          new THREE.Vector3(3.8 * c, 3.8 * s, -15.6),
-        ]);
-        add(buildTube(curve, 16, 12, (u) => 0.32 - 0.08 * u));
-      }
-      add(new THREE.TorusGeometry(3.8, 0.42, 10, 48), move(0, 0, -15.7));
     }
     return own(mergeGeometries(parts));
   }
@@ -299,8 +291,8 @@ export function create(ctx) {
   // Pores are polished smoked glass (clear transmission glass was tried here and
   // cost over 10 ms a frame). Channels, the short tunnel through the double
   // membrane, are a separate double-sided mesh.
-  const poreMat = solid(outer, { rim: 0.55, rimPower: 2, objP: true, light: POOL }, { tone: 0.26, roughness: 0.14, env: 1.9 });
-  const channelMat = solid(outer, { rim: 0.3, objP: true, light: POOL }, { tone: 0.3, roughness: 0.5, side: THREE.DoubleSide });
+  const poreMat = solid(outer, { rim: 0.55, rimPower: 2, objP: true, light: POOL }, { color: HUE.pore, tone: 0.6, roughness: 0.22, env: 1.5 });
+  const channelMat = solid(outer, { rim: 0.3, objP: true, light: POOL }, { color: HUE.channel, tone: 0.45, roughness: 0.5, side: THREE.DoubleSide });
   const up = new THREE.Vector3(0, 0, 1);
   const q = new THREE.Quaternion();
   const q2 = new THREE.Quaternion();
@@ -329,7 +321,7 @@ export function create(ctx) {
   {
     const count = low ? 600 : 1300;
     const geo = own(smoothIco(1));
-    const mat = solid(outer, { rim: 0.5, objP: true, light: POOL }, { tone: 0.62, roughness: 0.4 });
+    const mat = solid(outer, { rim: 0.5, objP: true, light: POOL }, { color: HUE.ribosome, tone: 0.8, roughness: 0.4 });
     const mesh = new THREE.InstancedMesh(geo, mat, count);
     const cosCap = Math.cos(CAP * 0.72);
     let placed = 0;
@@ -396,9 +388,15 @@ export function create(ctx) {
   );
   const spoolLo = own(smoothIco(1).scale(1.1, 0.62, 1.1));
 
-  const matNear = solid(inner, { rim: 0.4, rimPower: 1.8 }, { tone: 0.32, roughness: 0.2, env: 1.6 });
-  const matMid = solid(inner, { rim: 0.35, rimPower: 2 }, { tone: 0.3, roughness: 0.3, env: 1.3 });
-  const matFar = solid(inner, { rim: 0.25, rimPower: 2 }, { tone: 0.3, roughness: 0.5, env: 0.8 });
+  // Three depth grades of each chromatin colour: fibres, strings, threads.
+  const grades = (color) => ({
+    near: solid(inner, { rim: 0.4, rimPower: 1.8 }, { color, tone: 0.62, roughness: 0.28, env: 1.3 }),
+    mid: solid(inner, { rim: 0.35, rimPower: 2 }, { color, tone: 0.56, roughness: 0.35, env: 1.1 }),
+    far: solid(inner, { rim: 0.25, rimPower: 2 }, { color, tone: 0.5, roughness: 0.5, env: 0.8 }),
+  });
+  const matA = grades(HUE.fibre);
+  const matB = grades(HUE.string);
+  const matC = grades(HUE.thread);
 
   // Buckets: fibres of one kind in one stretch of track share two draw calls.
   const buckets = new Map();
@@ -484,39 +482,39 @@ export function create(ctx) {
   // Zone A (just inside): thick compacted fibres.
   for (let i = 0; i < half(5); i++) {
     const c = zonePath({ w0: 200, w1: 460, r0: 0, r1: 36, steps: 19, step: 11, turn: 0.3 });
-    addSolenoid(c, bucket('A-near', -c.points[9].z, beadHi, beadLo, matNear), 1.2);
+    addSolenoid(c, bucket('A-near', -c.points[9].z, beadHi, beadLo, matA.near), 1.2);
   }
   for (let i = 0; i < half(7); i++) {
     const c = zonePath({ w0: 195, w1: 490, r0: 34, r1: 95, steps: 19, step: 12, turn: 0.3 });
-    addSolenoid(c, bucket('A-mid', -c.points[9].z, beadMid, beadLo, matMid), 1.3);
+    addSolenoid(c, bucket('A-mid', -c.points[9].z, beadMid, beadLo, matA.mid), 1.3);
   }
   for (let i = 0; i < half(8); i++) {
     const c = zonePath({ w0: 200, w1: 540, r0: 90, r1: 190, steps: 18, step: 16, turn: 0.3 });
-    addSolenoid(c, bucket('A-far', -c.points[9].z, beadLo, beadLo, matFar), 2.2);
+    addSolenoid(c, bucket('A-far', -c.points[9].z, beadLo, beadLo, matA.far), 2.2);
   }
 
   // Zone B: the fibres open into beads on a string.
   for (let i = 0; i < half(16); i++) {
     const c = zonePath({ w0: 410, w1: 730, r0: 0, r1: 34, steps: 26, step: 7.5, turn: 0.45 });
-    addString(c, bucket('B-near', -c.points[13].z, spoolGeo, spoolLo, matNear), { beadR: 1.1, spacing: 3.8, thread: 0.2, radialSegs: 6, spool: true });
+    addString(c, bucket('B-near', -c.points[13].z, spoolGeo, spoolLo, matB.near), { beadR: 1.1, spacing: 3.8, thread: 0.2, radialSegs: 6, spool: true });
   }
   for (let i = 0; i < half(22); i++) {
     const c = zonePath({ w0: 400, w1: 750, r0: 30, r1: 95, steps: 26, step: 8, turn: 0.45 });
-    addString(c, bucket('B-mid', -c.points[13].z, beadMid, beadLo, matMid), { beadR: 1.1, spacing: 3.8, thread: 0.2, radialSegs: 5, spool: false });
+    addString(c, bucket('B-mid', -c.points[13].z, beadMid, beadLo, matB.mid), { beadR: 1.1, spacing: 3.8, thread: 0.2, radialSegs: 5, spool: false });
   }
   for (let i = 0; i < half(18); i++) {
     const c = zonePath({ w0: 420, w1: 780, r0: 85, r1: 190, steps: 22, step: 13, turn: 0.4 });
-    addString(c, bucket('B-far', -c.points[11].z, beadMid, beadLo, matFar), { beadR: 1.3, spacing: 4.8, thread: 0.28, radialSegs: 4, spool: false });
+    addString(c, bucket('B-far', -c.points[11].z, beadMid, beadLo, matB.far), { beadR: 1.3, spacing: 4.8, thread: 0.28, radialSegs: 4, spool: false });
   }
 
   // Zone C: bare threads, thinning out and parting around the clearing.
   for (let i = 0; i < half(26); i++) {
     const c = zonePath({ w0: 670, w1: 872, r0: 0, r1: 42, steps: 24, step: 7, turn: 0.4 });
-    addString(c, bucket('C-near', -c.points[12].z, null, null, matNear), { beadR: 0, thread: 0.2, radialSegs: 6 });
+    addString(c, bucket('C-near', -c.points[12].z, null, null, matC.near), { beadR: 0, thread: 0.2, radialSegs: 6 });
   }
   for (let i = 0; i < half(30); i++) {
     const c = zonePath({ w0: 660, w1: 876, r0: 38, r1: 130, steps: 22, step: 9, turn: 0.4 });
-    addString(c, bucket('C-mid', -c.points[11].z, null, null, matMid), { beadR: 0, thread: 0.28, radialSegs: 5 });
+    addString(c, bucket('C-mid', -c.points[11].z, null, null, matC.mid), { beadR: 0, thread: 0.28, radialSegs: 5 });
   }
 
   const instanced = (geo, material, matrices) => {
@@ -551,7 +549,7 @@ export function create(ctx) {
   // 3. Dust: fine motes for speed and parallax
   // ==========================================================================
   const dustUniforms = {
-    uColor: { value: new THREE.Color(0xb39de6) },
+    uColor: { value: new THREE.Color(HUE.dust) },
     uPx: { value: 1000 },
     uTime: { value: 0 },
     uFogDensity: inner.uFogDensity,
@@ -658,7 +656,7 @@ export function create(ctx) {
   // 5. Haze: soft chromatin strands in a shell around the local Y axis
   // ==========================================================================
   const HAZE_OPACITY = 0.5;
-  const hazeMat = own(softMaterial({ color: tokens.frost, opacity: HAZE_OPACITY, soft: 1.5 }));
+  const hazeMat = own(softMaterial({ color: HUE.haze, opacity: HAZE_OPACITY, soft: 1.5 }));
   hazeMat.uniforms.uNear.value.set(9, 26);
   const haze = new THREE.Group();
   {
