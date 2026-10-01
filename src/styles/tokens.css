@@ -1,0 +1,15 @@
+/* Design tokens. Owner: main session. Mirrored in src/scene/tokens.js for WebGL. */
+:root {
+  --darkfield: #05040d;
+  --deep-field: #1b1340;
+  --gold: #ffbf52;
+  --glass: #e9f0f7;
+  --frost: #8c9aad;
+  --arterial: #c4122f;
+
+  --font-display: 'Bodoni Moda', 'Didot', 'Bodoni 72', serif;
+  --font-text: 'Instrument Sans', 'Helvetica Neue', Arial, sans-serif;
+
+  --measure: 34ch;
+  --rule: 1px;
+}

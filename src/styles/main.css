@@ -1,0 +1,1083 @@
+/* Page styles. Owner: agent 05-page.
+   Colour comes only from tokens.css. Arterial red is used in exactly one place
+   in the HTML layer: the guide thread of the progress strand (progress.js). */
+
+:root {
+  /* Tints of the two neutrals; no new hues. */
+  --ink: var(--glass);
+  --ink-soft: color-mix(in srgb, var(--glass) 86%, var(--darkfield));
+  --ink-quiet: color-mix(in srgb, var(--glass) 52%, var(--frost));
+  --hair: color-mix(in srgb, var(--glass) 26%, transparent);
+  --hair-strong: color-mix(in srgb, var(--glass) 55%, transparent);
+  --veil: color-mix(in srgb, var(--darkfield) 90%, transparent);
+
+  /* Type scale. Bodoni Moda for --t-line and --t-title only (never under 40px). */
+  --t-note: 0.8125rem; /* 13 */
+  --t-small: 0.9375rem; /* 15 */
+  --t-body: clamp(1rem, 0.94rem + 0.28vw, 1.1875rem); /* 16 to 19 */
+  --t-lede: clamp(1.1875rem, 1rem + 0.62vw, 1.5rem); /* 19 to 24 */
+  --t-line: clamp(2.5rem, 1.45rem + 3.2vw, 4.5rem); /* 40 to 72 */
+  --t-title: clamp(4.25rem, 1rem + 12.2vw, 12.5rem); /* 68 to 200 */
+
+  /* Layout. */
+  --gutter: clamp(3.25rem, 6.4vw, 7rem); /* left edge of the copy column */
+  --col: clamp(22rem, 33vw, 31rem); /* width of the copy column */
+  --strand-x: clamp(1rem, 2.2vw, 2.25rem);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--darkfield);
+  color: var(--ink);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--darkfield);
+  color: var(--ink);
+  font-family: var(--font-text);
+  font-size: var(--t-body);
+  line-height: 1.5;
+  font-kerning: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip;
+}
+
+::selection {
+  background: var(--glass);
+  color: var(--darkfield);
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+ol,
+ul,
+dl,
+dd,
+table {
+  margin: 0;
+  padding: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  text-decoration-color: var(--hair-strong);
+}
+
+a:hover {
+  text-decoration-color: currentColor;
+}
+
+:focus-visible {
+  outline: 2px solid var(--glass);
+  outline-offset: 3px;
+  border-radius: 1px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip {
+  position: fixed;
+  left: var(--gutter);
+  top: 1rem;
+  z-index: 10;
+  padding: 0.5rem 0.75rem;
+  background: var(--glass);
+  color: var(--darkfield);
+  font-size: var(--t-small);
+  text-decoration: none;
+  transform: translateY(-300%);
+}
+
+.skip:focus {
+  transform: none;
+}
+
+.noscript {
+  position: relative;
+  z-index: 5;
+  max-width: 34rem;
+  margin: 20vh var(--gutter);
+  font-size: var(--t-lede);
+}
+
+/* ---------------------------------------------------------------- layers */
+
+#stage-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+
+#stage {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* A soft gradient from the copy edge. Not a panel: it has no edge of its own. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  transition: transform 1.1s cubic-bezier(0.22, 0.61, 0.2, 1);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--darkfield) 90%, transparent) 0%,
+    color-mix(in srgb, var(--darkfield) 74%, transparent) 22%,
+    color-mix(in srgb, var(--darkfield) 40%, transparent) 40%,
+    transparent 58%
+  );
+}
+
+[data-annotations] {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+main {
+  position: relative;
+  z-index: 3;
+}
+
+[data-progress] {
+  position: fixed;
+  z-index: 4;
+  left: var(--strand-x);
+  top: 50%;
+  width: 28px;
+  height: min(46vh, 26rem);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+[data-progress] svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.strand__backbone {
+  fill: none;
+  stroke: color-mix(in srgb, var(--glass) 78%, transparent);
+  stroke-width: 1;
+}
+
+.strand__rungs {
+  fill: none;
+  stroke: color-mix(in srgb, var(--frost) 80%, transparent);
+  stroke-width: 1;
+}
+
+.strand__ticks {
+  fill: none;
+  stroke: color-mix(in srgb, var(--frost) 70%, transparent);
+  stroke-width: 1;
+}
+
+.strand__guide {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+/* ---------------------------------------------------------- pinned scenes */
+
+.scene {
+  position: relative;
+}
+
+.scene--pinned {
+  height: calc(var(--len, 100) * 1vh);
+}
+
+.scene__copy {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: calc(var(--gutter) + var(--col));
+  height: 100vh;
+  height: 100svh;
+  padding-left: var(--gutter);
+  /* Optical: sit a little above true centre, as a caption block would. */
+  padding-bottom: 6vh;
+}
+
+.line {
+  font-family: var(--font-display);
+  /* A low optical size at display scale: the hairlines stay whole on a dark
+     field at 1x, and the letters close up into a tighter, more cut look. */
+  font-optical-sizing: none;
+  font-variation-settings: 'opsz' 20;
+  font-weight: 400;
+  font-size: var(--t-line);
+  line-height: 1.06;
+  letter-spacing: -0.026em;
+  color: var(--ink);
+  text-wrap: balance;
+  font-feature-settings: 'kern', 'liga';
+}
+
+.line__sentence {
+  display: block;
+}
+
+.line__sentence + .line__sentence {
+  margin-top: 0.14em;
+}
+
+.copy {
+  max-width: var(--measure);
+  margin-top: 1.75rem;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+
+.fine {
+  max-width: 38ch;
+  margin-top: 1.5rem;
+  font-size: var(--t-small);
+  line-height: 1.45;
+  color: var(--ink-quiet);
+  text-wrap: pretty;
+}
+
+/* Title: the one loud moment. Set low and large, like a name cut into a plinth. */
+.scene--title .scene__copy {
+  justify-content: flex-end;
+  width: min(100%, calc(var(--gutter) + 62rem));
+  padding-bottom: clamp(3rem, 9vh, 6.5rem);
+}
+
+.line--title {
+  max-width: 6.4ch;
+  font-variation-settings: 'opsz' 96;
+  font-size: var(--t-title);
+  line-height: 0.88;
+  letter-spacing: -0.028em;
+  margin-left: -0.04em;
+}
+
+.copy--lede {
+  max-width: 31ch;
+  margin-top: clamp(1.75rem, 4.4vh, 3rem);
+  font-size: var(--t-lede);
+  line-height: 1.36;
+  color: var(--ink);
+}
+
+/* ---------------------------------------------------------------- readouts */
+
+.readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.75rem;
+  margin-top: 2.25rem;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: 'tnum', 'lnum';
+}
+
+.readout__value {
+  font-size: var(--t-lede);
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.readout__unit {
+  font-size: var(--t-note);
+  color: var(--ink-quiet);
+}
+
+/* A microscope scale bar: a rule with end ticks, and the length it stands for. */
+.readout--scale {
+  flex-direction: row;
+}
+
+.readout__bar {
+  flex: 0 0 100%;
+  width: 100%;
+  max-width: 7.5rem;
+  height: 7px;
+  margin-bottom: 0.55rem;
+  border: solid var(--hair-strong);
+  border-width: 0 1px 1px;
+}
+
+.readout--count .readout__value {
+  min-width: 13ch; /* room for 3,055,000,000 so the caption does not jitter */
+}
+
+/* -------------------------------------------- inline notes (fallback text) */
+
+/* With WebGL the clinical notes are pinned to the model by annotations.js and
+   these inline copies are kept for assistive technology only. */
+.notes {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.note {
+  font-size: var(--t-note);
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+.note__term {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.cite {
+  margin-left: 0.2em;
+  font-size: 0.72em;
+  line-height: 0;
+  vertical-align: 0.5em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-quiet);
+}
+
+.cite a {
+  padding: 0.4em 0.1em;
+  text-decoration: none;
+}
+
+.cite a:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+/* ------------------------------------------------------ pinned annotations */
+
+.anno {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.anno__dot,
+.anno__lead,
+.anno__label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+}
+
+.anno__dot {
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border: 1px solid var(--glass);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--darkfield) 55%, transparent);
+}
+
+.anno__lead {
+  width: 1px;
+  height: 1px;
+  background: var(--hair-strong);
+  transform-origin: 0 0;
+}
+
+.anno__label {
+  width: 15.5rem;
+  padding: 0.5rem 0.7rem 0.6rem;
+  border-top: 1px solid var(--hair-strong);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--darkfield) 82%, transparent),
+    color-mix(in srgb, var(--darkfield) 62%, transparent)
+  );
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  font-size: var(--t-note);
+  line-height: 1.42;
+  color: var(--ink);
+  /* Legible over glass highlights and over red cells without a box. */
+  text-shadow:
+    0 0 2px var(--darkfield),
+    0 0 10px var(--darkfield),
+    0 0 22px var(--darkfield);
+}
+
+.anno__label b {
+  font-weight: 600;
+}
+
+.anno__label sup {
+  margin-left: 0.25em;
+  font-size: 0.72em;
+  line-height: 0;
+  vertical-align: 0.5em;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--glass) 78%, transparent);
+}
+
+/* --------------------------------------------- content scenes (practice, refs) */
+
+.scene--content {
+  padding: 26vh var(--gutter) 24vh;
+  background: linear-gradient(
+    180deg,
+    transparent 0,
+    var(--veil) 20vh,
+    var(--veil) calc(100% - 20vh),
+    transparent 100%
+  );
+}
+
+.content {
+  max-width: 70rem;
+}
+
+.content__head {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  column-gap: clamp(2rem, 5vw, 5rem);
+  align-items: end;
+}
+
+.content__head .line {
+  max-width: 13ch;
+}
+
+.copy--wide {
+  max-width: 62ch;
+}
+
+.content__head .copy {
+  max-width: 40ch;
+  margin-top: 0;
+  padding-bottom: 0.4em;
+}
+
+.copy--quiet {
+  margin-top: 0.9rem;
+  font-size: var(--t-small);
+  color: var(--ink-quiet);
+}
+
+.block {
+  margin-top: clamp(4rem, 11vh, 7rem);
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--hair-strong);
+}
+
+.block__title {
+  font-family: var(--font-text);
+  font-size: var(--t-lede);
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+}
+
+.block__body {
+  margin-top: 2rem;
+}
+
+.block__body > .copy:first-child {
+  margin-top: 0;
+}
+
+/* Four steps: a true sequence, so it is numbered. */
+.steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: clamp(1.5rem, 3vw, 3rem);
+  margin-top: 2rem;
+  list-style: none;
+}
+
+.steps__item {
+  font-size: var(--t-small);
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.steps__n {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--t-line);
+  font-optical-sizing: none;
+  font-variation-settings: 'opsz' 20;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--ink);
+  font-variant-numeric: lining-nums;
+}
+
+.steps__title {
+  margin: 1rem 0 0.4rem;
+  font-size: var(--t-body);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ink);
+}
+
+/* Evidence table. */
+.evidence {
+  width: 100%;
+  margin-top: 2.5rem;
+  border-collapse: collapse;
+  font-size: var(--t-small);
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: 'tnum', 'lnum';
+}
+
+.evidence th,
+.evidence td {
+  padding: 0.8rem 1.5rem 0.8rem 0;
+  text-align: left;
+  vertical-align: baseline;
+  font-weight: 400;
+}
+
+.evidence thead th {
+  padding-top: 0;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--hair-strong);
+  font-size: var(--t-note);
+  color: var(--ink-quiet);
+}
+
+.evidence tbody tr {
+  border-top: 1px solid var(--hair);
+}
+
+.evidence tbody tr:first-child,
+.evidence tbody tr.evidence__cont {
+  border-top: 0;
+}
+
+.evidence tbody tr.evidence__cont td {
+  border-top: 1px solid var(--hair);
+}
+
+.evidence tbody th {
+  width: 30%;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.evidence td {
+  color: var(--ink-soft);
+}
+
+.evidence .num {
+  padding-right: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.evidence__n {
+  font-size: var(--t-body);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.evidence__pct {
+  display: inline-block;
+  min-width: 4.2ch;
+  color: var(--ink-quiet);
+}
+
+.footnotes {
+  margin-top: 1.5rem;
+  list-style: none;
+  max-width: 78ch;
+  font-size: var(--t-note);
+  line-height: 1.5;
+  color: var(--ink-quiet);
+}
+
+.footnotes li + li {
+  margin-top: 0.4rem;
+}
+
+/* What it asks. */
+.block__body--split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: clamp(2rem, 5vw, 5rem);
+}
+
+.terms__heading {
+  margin-bottom: 1.1rem;
+  font-size: var(--t-small);
+  font-weight: 400;
+  color: var(--ink-quiet);
+}
+
+.terms__item + .terms__item {
+  margin-top: 1.25rem;
+}
+
+.terms dt {
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink);
+}
+
+.terms dd {
+  margin-top: 0.2rem;
+  max-width: 46ch;
+  font-size: var(--t-small);
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+/* References. */
+.scene--references {
+  padding-bottom: 14vh;
+  background: linear-gradient(180deg, transparent 0, var(--darkfield) 22vh);
+}
+
+.content--refs {
+  display: grid;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+  column-gap: clamp(2rem, 5vw, 5rem);
+  align-items: start;
+}
+
+.refs {
+  max-width: 72ch;
+  padding-left: 2.2em;
+  font-size: var(--t-small);
+  line-height: 1.5;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.refs__item {
+  padding-left: 0.4em;
+  scroll-margin-top: 30vh;
+}
+
+.refs__item + .refs__item {
+  margin-top: 0.75rem;
+}
+
+.refs__item::marker {
+  color: var(--ink-quiet);
+}
+
+.refs__item:target {
+  color: var(--ink);
+}
+
+.refs__item a {
+  overflow-wrap: anywhere;
+  color: var(--ink-quiet);
+}
+
+.refs__item a:hover {
+  color: var(--ink);
+}
+
+.refs__item--pending {
+  color: var(--ink-quiet);
+  font-style: italic;
+}
+
+.closing {
+  grid-column: 2;
+  max-width: 62ch;
+  margin-top: 3.5rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--hair-strong);
+  font-size: var(--t-small);
+  line-height: 1.5;
+  color: var(--ink-quiet);
+}
+
+/* ------------------------------------------------------------------ phones */
+
+@media (max-width: 900px) {
+  :root {
+    --gutter: 2.75rem;
+    --col: calc(100vw - var(--gutter) - 1.25rem);
+    --strand-x: 0.5rem;
+  }
+
+  /* Copy sits in the bottom third; the 3D takes the centre. */
+  .scrim {
+    background: linear-gradient(
+      0deg,
+      color-mix(in srgb, var(--darkfield) 94%, transparent) 0%,
+      color-mix(in srgb, var(--darkfield) 84%, transparent) 26%,
+      color-mix(in srgb, var(--darkfield) 40%, transparent) 44%,
+      transparent 58%
+    );
+  }
+
+  .scene__copy {
+    justify-content: flex-end;
+    padding-bottom: max(2rem, env(safe-area-inset-bottom));
+  }
+
+  .line {
+    max-width: 13em;
+    line-height: 1.02;
+  }
+
+  .copy {
+    margin-top: 0.9rem;
+    line-height: 1.42;
+  }
+
+  .scene--title .scene__copy {
+    width: 100%;
+    padding-bottom: max(2.5rem, env(safe-area-inset-bottom));
+  }
+
+  .line--title {
+    font-size: clamp(4.25rem, 22vw, 6rem);
+  }
+
+  .fine {
+    margin-top: 1rem;
+  }
+
+  .readout {
+    margin-top: 1.1rem;
+  }
+
+  [data-progress] {
+    top: 9vh;
+    height: 34vh;
+    transform: none;
+  }
+
+  .anno__label {
+    width: 10.75rem;
+    font-size: 0.75rem;
+    line-height: 1.36;
+  }
+
+  .scene--content {
+    padding: 22vh 1.25rem 20vh var(--gutter);
+  }
+
+  .content__head,
+  .content--refs,
+  .block__body--split {
+    display: block;
+  }
+
+  .content__head .copy {
+    margin-top: 1.25rem;
+  }
+
+  .steps {
+    grid-template-columns: 1fr;
+    row-gap: 2rem;
+  }
+
+  .steps__item {
+    display: grid;
+    grid-template-columns: 2.5rem 1fr;
+    column-gap: 0.75rem;
+  }
+
+  .steps__n {
+    grid-row: 1 / span 2;
+    line-height: 0.9;
+  }
+
+  .steps__title {
+    margin-top: 0.3rem;
+  }
+
+  .steps__item p {
+    grid-column: 2;
+  }
+
+  /* The table becomes a list of results. */
+  .evidence thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .evidence,
+  .evidence tbody,
+  .evidence tr,
+  .evidence th,
+  .evidence td {
+    display: block;
+    width: auto;
+  }
+
+  .evidence tbody tr {
+    padding: 0.9rem 0;
+    border-top: 1px solid var(--hair);
+  }
+
+  .evidence tbody tr:first-child {
+    border-top: 1px solid var(--hair-strong);
+  }
+
+  .evidence tbody tr.evidence__cont {
+    border-top: 1px solid var(--hair);
+  }
+
+  .evidence tbody tr.evidence__cont td {
+    border-top: 0;
+  }
+
+  .evidence tbody tr.evidence__cont .sr-only {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    clip-path: none;
+    white-space: normal;
+  }
+
+  .evidence th,
+  .evidence td {
+    padding: 0;
+  }
+
+  .evidence tbody th {
+    width: auto;
+  }
+
+  .evidence .num {
+    margin-top: 0.35rem;
+    text-align: left;
+  }
+
+  .block__body--split > div + div {
+    margin-top: 2.5rem;
+  }
+
+  .refs {
+    margin-top: 2rem;
+    padding-left: 1.6em;
+  }
+
+  .closing {
+    margin-top: 2.5rem;
+  }
+}
+
+/* ---------------------------------------------------------- reduced motion */
+
+/* One still per scene: sections shrink to a single viewport and nothing
+   depends on sticky scrubbing. */
+html.reduced-motion .scene--pinned {
+  height: auto;
+  min-height: 100vh;
+  min-height: 100svh;
+}
+
+html.reduced-motion .scene__copy {
+  position: relative;
+}
+
+/* ---------------------------------------------------------------- no WebGL */
+
+/* No canvas: the page reads as a long-form article. The clinical notes move
+   from the model into the text, set beside each passage like marginalia. */
+html.no-webgl #stage-wrap,
+html.no-webgl .scrim,
+html.no-webgl [data-annotations] {
+  display: none;
+}
+
+html.no-webgl body {
+  background:
+    radial-gradient(120% 60rem at 78% -10rem, var(--deep-field) 0%, transparent 62%),
+    var(--darkfield);
+}
+
+html.no-webgl .scene--pinned {
+  height: auto;
+  min-height: 0;
+}
+
+html.no-webgl .scene__copy {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+  column-gap: clamp(2rem, 6vw, 6rem);
+  align-items: start;
+  width: auto;
+  max-width: calc(var(--gutter) + 74rem);
+  height: auto;
+  padding: clamp(3.5rem, 11vh, 6.5rem) var(--gutter) 0;
+}
+
+html.no-webgl .scene--pinned:not(.scene--title) .scene__copy::before {
+  content: '';
+  grid-column: 1 / -1;
+  height: 1px;
+  margin-bottom: 1.4rem;
+  background: var(--hair);
+}
+
+html.no-webgl .scene__copy > .line {
+  grid-column: 1;
+  grid-row: 2 / span 3;
+  max-width: 15ch;
+}
+
+html.no-webgl .scene__copy > .copy,
+html.no-webgl .scene__copy > .notes,
+html.no-webgl .scene__copy > .fine {
+  grid-column: 2;
+}
+
+html.no-webgl .scene__copy > .copy {
+  margin-top: 0.5rem;
+}
+
+html.no-webgl .readout {
+  display: none;
+}
+
+html.no-webgl .notes {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+  white-space: normal;
+  max-width: 44ch;
+  margin-top: 1.5rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--hair-strong);
+}
+
+html.no-webgl .note + .note {
+  margin-top: 0.6rem;
+}
+
+html.no-webgl .scene--title .scene__copy {
+  display: block;
+  min-height: 78vh;
+  padding-top: 18vh;
+}
+
+html.no-webgl .scene--content {
+  padding-top: clamp(5rem, 16vh, 9rem);
+  padding-bottom: clamp(3rem, 8vh, 6rem);
+  background: none;
+}
+
+html.no-webgl .scene--practice .content,
+html.no-webgl .scene--references .content {
+  padding-top: 1.4rem;
+  border-top: 1px solid var(--hair);
+}
+
+@media (max-width: 900px) {
+  html.no-webgl .scene__copy {
+    display: block;
+    padding-right: 1.25rem;
+  }
+
+  html.no-webgl .scene--pinned:not(.scene--title) .scene__copy::before {
+    display: block;
+  }
+
+  html.no-webgl .scene__copy > .copy {
+    margin-top: 1.1rem;
+  }
+}
+
+@media print {
+  #stage-wrap,
+  .scrim,
+  [data-annotations],
+  [data-progress],
+  .skip {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------- alternating text sides */
+
+/* The legibility gradient follows the text to the right. */
+html.copy-right .scrim {
+  transform: scaleX(-1);
+}
+
+.scene--right .scene__copy {
+  margin-left: auto;
+  padding-left: 0;
+  padding-right: calc(var(--gutter) + 2rem);
+  width: calc(var(--gutter) + var(--col) + 2rem);
+}
+
+/* Each scene's text slides a short way in from its own edge as it arrives. */
+html.webgl:not(.reduced-motion) .scene--pinned:not(.scene--title) .scene__copy > * {
+  opacity: 0;
+  transform: translate3d(-56px, 0, 0);
+  transition:
+    opacity 0.7s ease,
+    transform 0.95s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+html.webgl:not(.reduced-motion) .scene--right .scene__copy > * {
+  transform: translate3d(56px, 0, 0);
+}
+
+html.webgl:not(.reduced-motion) .scene--pinned.is-in .scene__copy > * {
+  opacity: 1;
+  transform: none;
+}
+
+html.webgl:not(.reduced-motion) .scene--pinned.is-in .scene__copy > :nth-child(2) {
+  transition-delay: 0.08s;
+}
+
+html.webgl:not(.reduced-motion) .scene--pinned.is-in .scene__copy > :nth-child(n + 3) {
+  transition-delay: 0.16s;
+}
